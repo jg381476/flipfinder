@@ -3,11 +3,11 @@
 **Live app:** https://jg381476.github.io/flipfinder/
 
 Mobile-first PWA for flea markets and thrift stores: **photo → identify → estimated resale value → profit check → save**.
-Shared between two people, 100% free tools (React + Vite, Supabase free tier, Google Gemini free tier, GitHub Pages).
+Shared between two people, 100% free tools (React + Vite, Supabase free tier, free vision models via OpenRouter, GitHub Pages).
 
 ## How it works (and what it will NOT do)
 
-- **SCAN ITEM** opens the camera / photo library. The photo is shrunk in the browser and sent to a Supabase Edge Function that asks Google Gemini to identify the item (name, brand, model, condition) and give a price estimate.
+- **SCAN ITEM** opens the camera / photo library. The photo is shrunk in the browser and sent to a Supabase Edge Function that asks a free AI vision model to identify the item (name, brand, model, condition) and give a price estimate.
 - **Prices are never presented as facts.** The AI price is always labelled **"AI estimate, not a real market price"**, with a confidence level. Marketplaces have no free public price API, and we do not scrape them (that breaks their terms). Instead, buttons open each marketplace's *own* search page: **eBay (sold listings)**, **Vinted**, **Wallapop**, **FINN.no**. Look at what really sold, type your own price into the calculator, and the label changes to "Your own price".
 - **Profit calculator**: selling price − selling costs (% fees/packaging) − shipping you pay − purchase price = net profit and ROI. The traffic light:
   - 🟢 Good deal: profit ≥ €10 **and** ROI ≥ 100%
@@ -20,9 +20,9 @@ Shared between two people, 100% free tools (React + Vite, Supabase free tier, Go
 
 ## Security model
 
-- The **Gemini API key never leaves Supabase** (it is an Edge Function secret). The browser only holds the Supabase URL and *anon* key, which are public by design.
+- The **AI API key never leaves Supabase** (it is an Edge Function secret). The browser only holds the Supabase URL and *anon* key, which are public by design.
 - You share **one login** (email + password you create in Supabase). Row-level security allows only signed-in users to read/write finds, and the Edge Function refuses requests without a valid login, so strangers cannot burn your AI quota or read your data. Turn off public sign-ups (step 3).
-- Photos go to Google's Gemini API for identification. Avoid photographing people.
+- Photos go to the AI provider (OpenRouter and the free model's host) for identification, and free models may log prompts. Avoid photographing people or anything private.
 
 ## Live deployment (current setup)
 
@@ -30,14 +30,14 @@ Shared between two people, 100% free tools (React + Vite, Supabase free tier, Go
 |---|---|
 | App | <https://jg381476.github.io/flipfinder/> (GitHub Pages, deployed by `.github/workflows/deploy.yml` on every push to `main`) |
 | Database + login | Supabase project `flipfinder` (EU / Ireland, free plan), project ref `szxcevwionolcfcxuyal` |
-| AI | Supabase Edge Function `identify` calling Google Gemini (free tier); the key is the Supabase secret `GEMINI_API_KEY` |
+| AI | Supabase Edge Function `identify` calling free vision models through OpenRouter; the key is the Supabase secret `AI_API_KEY` |
 | Public config | GitHub repo *Variables* `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (publishable key, safe to expose) |
 
 **Sign-in:** one shared email + password lives in Supabase (Authentication → Users), and public sign-ups are disabled. The password is deliberately **not** in this repo. To change it: Supabase dashboard → Authentication → Users → the user → *Send password recovery* or *Update password*.
 
 **Install on iPhone:** open the URL in Safari → Share → *Add to Home Screen*. **Android:** Chrome menu → *Install app*.
 
-**Rotate the Gemini key:** create a new key at <https://aistudio.google.com/apikey>, then Supabase → Edge Functions → Secrets → set `GEMINI_API_KEY`. No redeploy needed.
+**Rotate the AI key:** create a new key at <https://openrouter.ai/keys>, then Supabase → Edge Functions → Secrets → set `AI_API_KEY`. No redeploy needed.
 
 **If a GitHub Pages deploy ever hangs on "updating_pages"** (it happened once on the very first deploy), push any new commit; re-running the same commit did not help.
 
@@ -63,18 +63,20 @@ The repository name becomes part of the URL (`https://<you>.github.io/flipfinder
 4. **Authentication → Sign In / Providers**: turn **off** "Allow new users to sign up". When creating the project, untick *Automatically expose new tables* (the schema grants access explicitly).
 5. **Project Settings → API**: copy the **Project URL** and the **anon / public key** (not the service_role key).
 
-### 3. Gemini key (free, no card)
-Create a key at <https://aistudio.google.com/apikey>. The free tier has daily/minute request limits that Google changes from time to time; when used up, the app tells you and you can enter details by hand.
+### 3. AI key (free, no card)
+Create a free key at <https://openrouter.ai/keys> (sign in with GitHub or Google). FlipFinder uses OpenRouter's **free** vision models (`google/gemma-4-31b-it:free` first, with fallbacks); free models are rate-limited (roughly 50 requests/day without credits) and they come and go, so if the AI is ever busy the app says so and you can enter details by hand. Any OpenAI-compatible provider works: set `AI_BASE_URL` and `AI_MODELS` as extra secrets.
+
+> **Why not Google Gemini?** Google's Gemini API free tier is not offered for projects created from Spain/EU accounts (it answers *"free tier is not available for this project, set up billing"*), and GitHub Models has been retired, so OpenRouter's free models are the working zero-cost option.
 
 ### 4. Deploy the AI function
 ```bash
 npx supabase login
 npx supabase link --project-ref <your-project-ref>      # the xxxx in https://xxxx.supabase.co
-npx supabase secrets set GEMINI_API_KEY=<your-gemini-key>
+npx supabase secrets set AI_API_KEY=<your-openrouter-key>
 npx supabase functions deploy identify
 ```
 (No CLI? In the Supabase dashboard: **Edge Functions → Deploy a new function → Via Editor**, name it `identify`, paste [`supabase/functions/identify/index.ts`](supabase/functions/identify/index.ts), then add the secret under **Edge Functions → Secrets**.)
-Optional secret `GEMINI_MODEL` overrides the model (default `gemini-flash-latest`).
+Optional secrets: `AI_MODELS` (comma-separated model list, tried in order), `AI_BASE_URL` (default OpenRouter).
 
 ### 5. GitHub Pages
 In your GitHub repo:
@@ -100,7 +102,7 @@ Updates: push to `main`; the app updates itself the next time it is opened (clos
 npm install
 cp .env.example .env      # optional: add Supabase values; empty = local-only mode
 npm run dev               # http://localhost:5173
-npm test                  # profit calculator tests
+npm test                  # profit calculator + Edge Function tests
 npm run build && npm run preview
 ```
 Camera capture needs HTTPS; `localhost` counts as secure, but to try it on your phone use the GitHub Pages URL.
@@ -112,11 +114,11 @@ src/components/ItemScreen.jsx  scan result: identify, correct, compare, calculat
 src/store.js                   saved finds (Supabase, or localStorage when not configured)
 src/ai.js, src/image.js        call the Edge Function; shrink photos
 supabase/schema.sql            table + row-level security
-supabase/functions/identify    Gemini call (holds the secret key)
+supabase/functions/identify    AI call (holds the secret key)
 ```
 
 ## Honest limitations
 - AI price estimates can be wrong, especially for unbranded or rare items. That is why every one is labelled and paired with sold-listing links.
 - Vinted, Wallapop and FINN.no show asking prices; only eBay offers sold-listing search.
-- Free-tier limits (Gemini requests, Supabase 500 MB database / projects pausing after about a week of no activity) may change; check the providers' pages.
+- Free-tier limits (free AI models, Supabase 500 MB database / projects pausing after about a week of no activity) may change; check the providers' pages.
 - Saved-find photos are stored as small JPEGs in the database; thousands of finds fit comfortably in the free tier.

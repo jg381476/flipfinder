@@ -2,7 +2,7 @@ import { supabase, cloudEnabled } from './supabase.js'
 
 export const aiAvailable = cloudEnabled
 
-// Sends the photo to our own Supabase Edge Function, which holds the Gemini key.
+// Sends the photo to our own Supabase Edge Function, which holds the AI key.
 // hints = the user's manual corrections (optional).
 export async function identify(imageDataUrl, hints) {
   if (!aiAvailable) throw new Error('AI is not set up. Fill in the details by hand.')
