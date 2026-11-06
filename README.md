@@ -24,9 +24,28 @@ Shared between two people, 100% free tools (React + Vite, Supabase free tier, Go
 - You share **one login** (email + password you create in Supabase). Row-level security allows only signed-in users to read/write finds, and the Edge Function refuses requests without a valid login, so strangers cannot burn your AI quota or read your data. Turn off public sign-ups (step 3).
 - Photos go to Google's Gemini API for identification. Avoid photographing people.
 
+## Live deployment (current setup)
+
+| Piece | Where |
+|---|---|
+| App | <https://jg381476.github.io/flipfinder/> (GitHub Pages, deployed by `.github/workflows/deploy.yml` on every push to `main`) |
+| Database + login | Supabase project `flipfinder` (EU / Ireland, free plan), project ref `szxcevwionolcfcxuyal` |
+| AI | Supabase Edge Function `identify` calling Google Gemini (free tier); the key is the Supabase secret `GEMINI_API_KEY` |
+| Public config | GitHub repo *Variables* `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (publishable key, safe to expose) |
+
+**Sign-in:** one shared email + password lives in Supabase (Authentication → Users), and public sign-ups are disabled. The password is deliberately **not** in this repo. To change it: Supabase dashboard → Authentication → Users → the user → *Send password recovery* or *Update password*.
+
+**Install on iPhone:** open the URL in Safari → Share → *Add to Home Screen*. **Android:** Chrome menu → *Install app*.
+
+**Rotate the Gemini key:** create a new key at <https://aistudio.google.com/apikey>, then Supabase → Edge Functions → Secrets → set `GEMINI_API_KEY`. No redeploy needed.
+
+**If a GitHub Pages deploy ever hangs on "updating_pages"** (it happened once on the very first deploy), push any new commit; re-running the same commit did not help.
+
+**Edge Function note:** the function does its own sign-in check (it asks Supabase Auth who is calling). When deploying it in the dashboard, "Verify JWT" can stay on or off; with Supabase's newer API keys it is safest to leave the function's own check in charge.
+
 ---
 
-## Setup (about 30 minutes, once)
+## Setup from scratch (about 30 minutes, only needed for a fresh copy)
 
 ### 1. Put the code on GitHub
 ```bash
@@ -41,7 +60,7 @@ The repository name becomes part of the URL (`https://<you>.github.io/flipfinder
 1. Sign up at <https://supabase.com> → **New project** (free plan, pick an EU region, save the database password).
 2. **SQL Editor** → paste all of [`supabase/schema.sql`](supabase/schema.sql) → **Run**.
 3. **Authentication → Users → Add user → Create new user**: choose an email and a strong password, tick **Auto Confirm User**. This is the shared login for both of you.
-4. **Authentication → Sign In / Providers** (or *Settings*): turn **off** "Allow new users to sign up".
+4. **Authentication → Sign In / Providers**: turn **off** "Allow new users to sign up". When creating the project, untick *Automatically expose new tables* (the schema grants access explicitly).
 5. **Project Settings → API**: copy the **Project URL** and the **anon / public key** (not the service_role key).
 
 ### 3. Gemini key (free, no card)
