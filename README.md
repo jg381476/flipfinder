@@ -1,5 +1,7 @@
 # FlipFinder
 
+**Live app:** https://jg381476.github.io/flipfinder/
+
 Mobile-first PWA for flea markets and thrift stores: **photo → identify → estimated resale value → profit check → save**.
 Shared between two people, 100% free tools (React + Vite, Supabase free tier, Google Gemini free tier, GitHub Pages).
 
