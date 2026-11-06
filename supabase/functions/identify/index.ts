@@ -3,8 +3,6 @@
 //
 // Secrets: GEMINI_API_KEY (required), GEMINI_MODEL (optional, default "gemini-flash-latest")
 
-import { createClient } from 'npm:@supabase/supabase-js@2'
-
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -37,10 +35,15 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405)
 
   // Only signed-in FlipFinder users may spend our free Gemini quota.
-  const token = (req.headers.get('Authorization') || '').replace('Bearer ', '')
-  const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!)
-  const { data: userData, error: authError } = await supabase.auth.getUser(token)
-  if (authError || !userData?.user) return json({ error: 'Please sign in again.' }, 401)
+  // We ask Supabase Auth who the caller is, using the user's token and the project's public key
+  // that the app sends in the `apikey` header.
+  const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
+  const publicKey = req.headers.get('apikey') || Deno.env.get('SUPABASE_ANON_KEY') || ''
+  if (!token || !publicKey) return json({ error: 'Please sign in again.' }, 401)
+  const who = await fetch(`${Deno.env.get('SUPABASE_URL')}/auth/v1/user`, {
+    headers: { Authorization: `Bearer ${token}`, apikey: publicKey },
+  })
+  if (!who.ok) return json({ error: 'Please sign in again.' }, 401)
 
   const apiKey = Deno.env.get('GEMINI_API_KEY')
   if (!apiKey) return json({ error: 'AI is not configured on the server (missing GEMINI_API_KEY).' }, 500)

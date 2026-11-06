@@ -26,3 +26,7 @@ create policy "signed in users share finds"
   to authenticated
   using (true)
   with check (true);
+
+-- Only signed-in users may use the table through the API (anonymous visitors get nothing).
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on public.finds to authenticated;
